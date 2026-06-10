@@ -10,24 +10,15 @@
 	}
 
 	function formatResetCountdown(timestampMs) {
-		// <= 0: reset time reached
 		const diffMs = timestampMs - Date.now();
 		if (diffMs <= 0) return '0s';
-
-		// < 1 min: show seconds
 		const totalSeconds = Math.floor(diffMs / 1000);
 		if (totalSeconds < 60) return `${totalSeconds}s`;
-
-		// < 1 hour: show minutes
 		const totalMinutes = Math.round(totalSeconds / 60);
 		if (totalMinutes < 60) return `${totalMinutes}m`;
-
-		// < 1 day: show hours
 		const hours = Math.floor(totalMinutes / 60);
 		const minutes = totalMinutes % 60;
 		if (hours < 24) return `${hours}h ${minutes}m`;
-
-		// >= 1 day: show days
 		const days = Math.floor(hours / 24);
 		const remHours = hours % 24;
 		return `${days}d ${remHours}h`;
@@ -38,32 +29,25 @@
 		if (element.hasAttribute('data-tooltip-setup')) return;
 		element.setAttribute('data-tooltip-setup', 'true');
 		element.classList.add('cc-tooltipTrigger');
-
 		let pressTimer;
 		let hideTimer;
-
 		const show = () => {
 			const rect = element.getBoundingClientRect();
 			tooltip.style.opacity = '1';
 			const tipRect = tooltip.getBoundingClientRect();
-
 			let left = rect.left + rect.width / 2;
 			if (left + tipRect.width / 2 > window.innerWidth) left = window.innerWidth - tipRect.width / 2 - 10;
 			if (left - tipRect.width / 2 < 0) left = tipRect.width / 2 + 10;
-
 			let top = rect.top - tipRect.height - topOffset;
 			if (top < 10) top = rect.bottom + 10;
-
 			tooltip.style.left = `${left}px`;
 			tooltip.style.top = `${top}px`;
 			tooltip.style.transform = 'translateX(-50%)';
 		};
-
 		const hide = () => {
 			tooltip.style.opacity = '0';
 			clearTimeout(hideTimer);
 		};
-
 		element.addEventListener('pointerdown', (e) => {
 			if (e.pointerType === 'touch' || e.pointerType === 'pen') {
 				pressTimer = setTimeout(() => {
@@ -72,17 +56,14 @@
 				}, 500);
 			}
 		});
-
 		element.addEventListener('pointerup', () => clearTimeout(pressTimer));
 		element.addEventListener('pointercancel', () => {
 			clearTimeout(pressTimer);
 			hide();
 		});
-
 		element.addEventListener('pointerenter', (e) => {
 			if (e.pointerType === 'mouse') show();
 		});
-
 		element.addEventListener('pointerleave', (e) => {
 			if (e.pointerType === 'mouse') hide();
 		});
@@ -99,7 +80,6 @@
 	class CounterUI {
 		constructor({ onUsageRefresh } = {}) {
 			this.onUsageRefresh = onUsageRefresh || null;
-
 			this.headerContainer = null;
 			this.headerDisplay = null;
 			this.lengthGroup = null;
@@ -109,7 +89,6 @@
 			this.lengthTooltip = null;
 			this.lastCachedUntilMs = null;
 			this.pendingCache = false;
-
 			this.usageLine = null;
 			this.sessionUsageSpan = null;
 			this.weeklyUsageSpan = null;
@@ -124,7 +103,6 @@
 			this.sessionWindowStartMs = null;
 			this.weeklyWindowStartMs = null;
 			this.refreshingUsage = false;
-
 			this.domObserver = null;
 		}
 
@@ -133,7 +111,6 @@
 			const modeDark = root.dataset?.mode === 'dark';
 			const modeLight = root.dataset?.mode === 'light';
 			const isDark = modeDark && !modeLight;
-
 			return {
 				strokeColor: isDark ? CC.COLORS.PROGRESS_OUTLINE_DARK : CC.COLORS.PROGRESS_OUTLINE_LIGHT,
 				fillColor: isDark ? CC.COLORS.PROGRESS_FILL_DARK : CC.COLORS.PROGRESS_FILL_LIGHT,
@@ -144,7 +121,6 @@
 
 		refreshProgressChrome() {
 			const { strokeColor, fillColor, markerColor } = this.getProgressChrome();
-
 			const applyBarChrome = (bar, { fillWarn } = {}) => {
 				if (!bar) return;
 				bar.style.setProperty('--cc-stroke', strokeColor);
@@ -152,51 +128,39 @@
 				bar.style.setProperty('--cc-fill-warn', fillWarn ?? fillColor);
 				bar.style.setProperty('--cc-marker', markerColor);
 			};
-
 			applyBarChrome(this.lengthBar, { fillWarn: fillColor });
 			applyBarChrome(this.sessionBar, { fillWarn: CC.COLORS.RED_WARNING });
 			applyBarChrome(this.weeklyBar, { fillWarn: CC.COLORS.RED_WARNING });
 		}
 
 		initialize() {
-			// Header container (tokens + cache timer)
 			this.headerContainer = document.createElement('div');
 			this.headerContainer.className = 'text-text-500 text-xs !px-1 cc-header';
-
 			this.headerDisplay = document.createElement('span');
 			this.headerDisplay.className = 'cc-headerItem';
-
 			this.lengthGroup = document.createElement('span');
 			this.lengthDisplay = document.createElement('span');
 			this.cachedDisplay = document.createElement('span');
-			this.cacheTimeSpan = null; // reference to inner time span
-
+			this.cacheTimeSpan = null;
 			this.lengthGroup.appendChild(this.lengthDisplay);
 			this.headerDisplay.appendChild(this.lengthGroup);
-
-			// Usage line (session + weekly)
 			this._initUsageLine();
-
 			this._setupTooltips();
 			this._observeDom();
 			this._observeTheme();
 		}
 
 		_observeTheme() {
-			// Watch for theme changes (data-mode attribute on <html>)
 			const observer = new MutationObserver(() => this.refreshProgressChrome());
 			observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mode'] });
 		}
 
 		_observeDom() {
-			// Track pending reattach attempts independently
 			let usageReattachPending = false;
 			let headerReattachPending = false;
-
 			this.domObserver = new MutationObserver(() => {
 				const usageMissing = this.usageLine && !document.contains(this.usageLine);
 				const headerMissing = !document.contains(this.headerContainer);
-
 				if (usageMissing && !usageReattachPending) {
 					usageReattachPending = true;
 					CC.waitForElement(CC.DOM.MODEL_SELECTOR_DROPDOWN, 60000).then((el) => {
@@ -204,7 +168,6 @@
 						if (el) this.attachUsageLine();
 					});
 				}
-
 				if (headerMissing && !headerReattachPending) {
 					headerReattachPending = true;
 					CC.waitForElement(CC.DOM.CHAT_MENU_TRIGGER, 60000).then((el) => {
@@ -218,14 +181,11 @@
 
 		_initUsageLine() {
 			this.usageLine = document.createElement('div');
-			this.usageLine.className =
-				'text-text-400 text-[11px] cc-usageRow cc-hidden flex flex-row items-center gap-3 w-full';
-
+			this.usageLine.className = 'text-text-400 text-[11px] cc-usageRow cc-hidden flex flex-row items-center gap-3 w-full';
 			this.sessionUsageSpan = document.createElement('span');
 			this.sessionUsageSpan.className = 'cc-usageText';
-
 			this.sessionBar = document.createElement('div');
-			this.sessionBar.className = 'cc-bar cc-bar--usage';
+			this.sessionBar.className = 'cc-bar cc-bar--session';
 			this.sessionBarFill = document.createElement('div');
 			this.sessionBarFill.className = 'cc-bar__fill';
 			this.sessionMarker = document.createElement('div');
@@ -233,10 +193,8 @@
 			this.sessionMarker.style.left = '0%';
 			this.sessionBar.appendChild(this.sessionBarFill);
 			this.sessionBar.appendChild(this.sessionMarker);
-
 			this.weeklyUsageSpan = document.createElement('span');
 			this.weeklyUsageSpan.className = 'cc-usageText';
-
 			this.weeklyBar = document.createElement('div');
 			this.weeklyBar.className = 'cc-bar cc-bar--usage';
 			this.weeklyBarFill = document.createElement('div');
@@ -246,22 +204,17 @@
 			this.weeklyMarker.style.left = '0%';
 			this.weeklyBar.appendChild(this.weeklyBarFill);
 			this.weeklyBar.appendChild(this.weeklyMarker);
-
 			this.sessionGroup = document.createElement('div');
 			this.sessionGroup.className = 'cc-usageGroup';
 			this.sessionGroup.appendChild(this.sessionUsageSpan);
 			this.sessionGroup.appendChild(this.sessionBar);
-
 			this.weeklyGroup = document.createElement('div');
 			this.weeklyGroup.className = 'cc-usageGroup cc-usageGroup--weekly';
 			this.weeklyGroup.appendChild(this.weeklyBar);
 			this.weeklyGroup.appendChild(this.weeklyUsageSpan);
-
 			this.usageLine.appendChild(this.sessionGroup);
 			this.usageLine.appendChild(this.weeklyGroup);
-
 			this.refreshProgressChrome();
-
 			this.usageLine.addEventListener('click', async () => {
 				if (!this.onUsageRefresh || this.refreshingUsage) return;
 				this.refreshingUsage = true;
@@ -277,29 +230,22 @@
 
 		_setupTooltips() {
 			this.lengthTooltip = makeTooltip(
-				"Approximate tokens (excludes system prompt).\nUses a generic tokenizer, may differ from Claude's count.\nBecomes invalid after context compaction.\nBar scale: 200k tokens (Claude's maximum context length, will compact before then)."
+				"Tokens aproximados (exclui prompt do sistema).\nUsa um tokenizador genérico, pode diferir da contagem do Claude.\nFica inválido após compactação de contexto.\nEscala da barra: 200k tokens (limite máximo de contexto do Claude, compactará antes disso)."
 			);
-			setupTooltip(
-				this.lengthGroup,
-				this.lengthTooltip,
-				{ topOffset: 8 }
-			);
-
+			setupTooltip(this.lengthGroup, this.lengthTooltip, { topOffset: 8 });
 			setupTooltip(
 				this.cachedDisplay,
-				makeTooltip("Messages sent while cached are significantly cheaper."),
+				makeTooltip("Mensagens enviadas enquanto em cache são significativamente mais baratas."),
 				{ topOffset: 8 }
 			);
-
 			setupTooltip(
 				this.sessionGroup,
-				makeTooltip("5-hour session window.\nThe bar shows your usage.\nThe line marks where you are in the window."),
+				makeTooltip("Janela de sessão de 5 horas.\nA barra tem gradiente vermelho (início) a verde (fim).\nA bolinha mostra o tempo decorrido na janela.\nO texto \"Sessão: X%\" indica o uso de mensagens (não o tempo)."),
 				{ topOffset: 8 }
 			);
-
 			setupTooltip(
 				this.weeklyGroup,
-				makeTooltip("7-day usage window.\nThe bar shows your usage.\nThe line marks where you are in the window."),
+				makeTooltip("Janela de uso de 7 dias.\nA barra tem gradiente verde (início) a vermelho (fim).\nA bolinha mostra o percentual de uso atual."),
 				{ topOffset: 8 }
 			);
 		}
@@ -343,7 +289,6 @@
 				}
 				return null;
 			};
-
 			const toolbarRow =
 				(gridContainer ? findToolbarRow(modelSelector, gridArea || gridContainer) : null) ||
 				findToolbarRow(modelSelector) ||
@@ -369,7 +314,6 @@
 
 		setConversationMetrics({ totalTokens, cachedUntil } = {}) {
 			this.pendingCache = false;
-
 			if (typeof totalTokens !== 'number') {
 				this.lengthDisplay.textContent = '';
 				this.cachedDisplay.textContent = '';
@@ -377,11 +321,8 @@
 				this._renderHeader();
 				return;
 			}
-
 			const pct = Math.max(0, Math.min(100, (totalTokens / CC.CONST.CONTEXT_LIMIT_TOKENS) * 100));
 			this.lengthDisplay.textContent = `~${totalTokens.toLocaleString()} tokens`;
-
-			// Mini bar (hide when full - context is definitely compacted by then)
 			const isFull = pct >= 99.5;
 			if (isFull) {
 				this.lengthDisplay.style.opacity = '0.5';
@@ -389,7 +330,7 @@
 				this.lengthGroup.replaceChildren(this.lengthDisplay);
 				if (this.lengthTooltip) {
 					this.lengthTooltip.textContent =
-						"Approximate tokens (excludes system prompt).\nUses a generic tokenizer, may differ from Claude's count.\nThis count is invalid after compaction.";
+						"Tokens aproximados (exclui prompt do sistema).\nUsa um tokenizador genérico, pode diferir da contagem do Claude.\nEsta contagem é inválida após compactação.";
 				}
 			} else {
 				this.lengthDisplay.style.opacity = '';
@@ -401,15 +342,11 @@
 				fill.style.width = `${pct}%`;
 				bar.appendChild(fill);
 				this.refreshProgressChrome();
-
 				const barContainer = document.createElement('span');
 				barContainer.className = 'inline-flex items-center';
 				barContainer.appendChild(bar);
-
 				this.lengthGroup.replaceChildren(this.lengthDisplay, document.createTextNode('\u00A0\u00A0'), barContainer);
 			}
-
-			// Cache timer
 			const now = Date.now();
 			if (typeof cachedUntil === 'number' && cachedUntil > now) {
 				this.lastCachedUntilMs = cachedUntil;
@@ -420,24 +357,20 @@
 					textContent: formatSeconds(secondsLeft)
 				});
 				this.cacheTimeSpan.style.color = boldColor;
-				this.cachedDisplay.replaceChildren(document.createTextNode('cached for\u00A0'), this.cacheTimeSpan);
+				this.cachedDisplay.replaceChildren(document.createTextNode('em cache por\u00A0'), this.cacheTimeSpan);
 			} else {
 				this.lastCachedUntilMs = null;
 				this.cacheTimeSpan = null;
 				this.cachedDisplay.textContent = '';
 			}
-
 			this._renderHeader();
 		}
 
 		_renderHeader() {
 			this.headerContainer.replaceChildren();
-
 			const hasTokens = !!this.lengthDisplay.textContent;
 			const hasCache = !!this.cachedDisplay.textContent;
-
 			if (!hasTokens) return;
-
 			if (hasCache) {
 				const gap = this.lengthBar ? '\u00A0\u00A0' : '\u00A0';
 				this.headerDisplay.replaceChildren(
@@ -448,7 +381,6 @@
 			} else {
 				this.headerDisplay.replaceChildren(this.lengthGroup);
 			}
-
 			this.headerContainer.appendChild(this.headerDisplay);
 		}
 
@@ -460,84 +392,61 @@
 				!!(session && typeof session.utilization === 'number') || !!(weekly && typeof weekly.utilization === 'number');
 			this.usageLine?.classList.toggle('cc-hidden', !hasAnyUsage);
 
+			// Sessão: bolinha baseada no tempo decorrido (janela de 5h)
 			if (session && typeof session.utilization === 'number') {
-				const rawPct = session.utilization;
-				const pct = Math.round(rawPct * 10) / 10;
+				const rawUsagePct = session.utilization;
+				const usagePct = Math.round(rawUsagePct * 10) / 10;
 				this.sessionResetMs = session.resets_at ? Date.parse(session.resets_at) : null;
 				this.sessionWindowStartMs = this.sessionResetMs ? this.sessionResetMs - 5 * 60 * 60 * 1000 : null;
-				const resetText = this.sessionResetMs ? ` · resets in ${formatResetCountdown(this.sessionResetMs)}` : '';
-				this.sessionUsageSpan.textContent = `Session: ${pct}%${resetText}`;
+				const resetText = this.sessionResetMs ? ` · reinicia em ${formatResetCountdown(this.sessionResetMs)}` : '';
+				this.sessionUsageSpan.textContent = `Sessão: ${usagePct}%${resetText}`;
 
-				const width = Math.max(0, Math.min(100, rawPct));
-				this.sessionBarFill.style.width = `${width}%`;
-				this.sessionBarFill.classList.toggle('cc-warn', width >= 90);
-				this.sessionBarFill.classList.toggle('cc-full', width >= 99.5);
+				// Posição da bolinha baseada no tempo decorrido (se disponível)
+				let timeProgress = 0;
+				if (this.sessionWindowStartMs && this.sessionResetMs && this.sessionResetMs > this.sessionWindowStartMs) {
+					const now = Date.now();
+					const total = this.sessionResetMs - this.sessionWindowStartMs;
+					const elapsed = Math.max(0, Math.min(total, now - this.sessionWindowStartMs));
+					timeProgress = (elapsed / total) * 100;
+				} else {
+					// fallback: usar a porcentagem de uso
+					timeProgress = rawUsagePct;
+				}
+				this.sessionMarker.style.left = `${Math.min(100, Math.max(0, timeProgress))}%`;
+				this.sessionMarker.classList.remove('cc-hidden');
 			} else {
 				this.sessionUsageSpan.textContent = '';
-				this.sessionBarFill.style.width = '0%';
-				this.sessionBarFill.classList.remove('cc-warn', 'cc-full');
+				this.sessionMarker.style.left = '0%';
+				this.sessionMarker.classList.add('cc-hidden');
 				this.sessionResetMs = null;
 				this.sessionWindowStartMs = null;
 			}
 
+			// Semanal: bolinha baseada na porcentagem de uso (como antes)
 			const hasWeekly = weekly && typeof weekly.utilization === 'number';
 			this.weeklyGroup?.classList.toggle('cc-hidden', !hasWeekly);
 			this.sessionGroup?.classList.toggle('cc-usageGroup--single', !hasWeekly);
 
 			if (hasWeekly) {
 				this.weeklyUsageSpan.classList.remove('cc-hidden');
-				this.weeklyBar.classList.remove('cc-hidden');
-
 				const rawPct = weekly.utilization;
 				const pct = Math.round(rawPct * 10) / 10;
 				this.weeklyResetMs = weekly.resets_at ? Date.parse(weekly.resets_at) : null;
 				this.weeklyWindowStartMs = this.weeklyResetMs ? this.weeklyResetMs - 7 * 24 * 60 * 60 * 1000 : null;
-				const resetText = this.weeklyResetMs ? ` · resets in ${formatResetCountdown(this.weeklyResetMs)}` : '';
-				this.weeklyUsageSpan.textContent = `Weekly: ${pct}%${resetText}`;
-
+				const resetText = this.weeklyResetMs ? ` · reinicia em ${formatResetCountdown(this.weeklyResetMs)}` : '';
+				this.weeklyUsageSpan.textContent = `Semanal: ${pct}%${resetText}`;
 				const width = Math.max(0, Math.min(100, rawPct));
-				this.weeklyBarFill.style.width = `${width}%`;
-				this.weeklyBarFill.classList.toggle('cc-warn', width >= 90);
-				this.weeklyBarFill.classList.toggle('cc-full', width >= 99.5);
+				this.weeklyMarker.style.left = `${width}%`;
+				this.weeklyMarker.classList.remove('cc-hidden');
 			} else {
 				this.weeklyUsageSpan.classList.add('cc-hidden');
-				this.weeklyBar.classList.add('cc-hidden');
+				this.weeklyMarker.classList.add('cc-hidden');
 				this.weeklyResetMs = null;
 				this.weeklyWindowStartMs = null;
-				this.weeklyBarFill.classList.remove('cc-warn', 'cc-full');
-			}
-
-			this._updateMarkers();
-		}
-
-		_updateMarkers() {
-			const now = Date.now();
-
-			if (this.sessionMarker && this.sessionWindowStartMs && this.sessionResetMs) {
-				const total = this.sessionResetMs - this.sessionWindowStartMs;
-				const elapsed = Math.max(0, Math.min(total, now - this.sessionWindowStartMs));
-				const ratio = total > 0 ? elapsed / total : 0;
-				const pct = Math.max(0, Math.min(100, ratio * 100));
-				this.sessionMarker.classList.remove('cc-hidden');
-				this.sessionMarker.style.left = `${pct}%`;
-			} else if (this.sessionMarker) {
-				this.sessionMarker.classList.add('cc-hidden');
-			}
-
-			if (this.weeklyMarker && this.weeklyWindowStartMs && this.weeklyResetMs) {
-				const total = this.weeklyResetMs - this.weeklyWindowStartMs;
-				const elapsed = Math.max(0, Math.min(total, now - this.weeklyWindowStartMs));
-				const ratio = total > 0 ? elapsed / total : 0;
-				const pct = Math.max(0, Math.min(100, ratio * 100));
-				this.weeklyMarker.classList.remove('cc-hidden');
-				this.weeklyMarker.style.left = `${pct}%`;
-			} else if (this.weeklyMarker) {
-				this.weeklyMarker.classList.add('cc-hidden');
 			}
 		}
 
 		tick() {
-			// Cache countdown
 			const now = Date.now();
 			if (this.lastCachedUntilMs && this.lastCachedUntilMs > now) {
 				const secondsLeft = Math.max(0, Math.ceil((this.lastCachedUntilMs - now) / 1000));
@@ -551,25 +460,30 @@
 				this.cachedDisplay.textContent = '';
 				this._renderHeader();
 			}
-
-			// Reset countdown text + time markers
 			if (this.sessionResetMs && this.sessionUsageSpan?.textContent) {
-				const idx = this.sessionUsageSpan.textContent.indexOf('· resets in');
+				const idx = this.sessionUsageSpan.textContent.indexOf('· reinicia em');
 				if (idx !== -1) {
-					const prefix = this.sessionUsageSpan.textContent.slice(0, idx + '· resets in '.length);
+					const prefix = this.sessionUsageSpan.textContent.slice(0, idx + '· reinicia em '.length);
 					this.sessionUsageSpan.textContent = `${prefix}${formatResetCountdown(this.sessionResetMs)}`;
 				}
 			}
-
 			if (this.weeklyResetMs && this.weeklyUsageSpan?.textContent) {
-				const idx = this.weeklyUsageSpan.textContent.indexOf('· resets in');
+				const idx = this.weeklyUsageSpan.textContent.indexOf('· reinicia em');
 				if (idx !== -1) {
-					const prefix = this.weeklyUsageSpan.textContent.slice(0, idx + '· resets in '.length);
+					const prefix = this.weeklyUsageSpan.textContent.slice(0, idx + '· reinicia em '.length);
 					this.weeklyUsageSpan.textContent = `${prefix}${formatResetCountdown(this.weeklyResetMs)}`;
 				}
 			}
-
-			this._updateMarkers();
+			// Atualizar a posição da bolinha de tempo da sessão a cada segundo (sem precisar de novo setUsage)
+			if (this.sessionWindowStartMs && this.sessionResetMs && this.sessionResetMs > this.sessionWindowStartMs) {
+				const now = Date.now();
+				const total = this.sessionResetMs - this.sessionWindowStartMs;
+				let elapsed = now - this.sessionWindowStartMs;
+				if (elapsed < 0) elapsed = 0;
+				if (elapsed > total) elapsed = total;
+				const progress = (elapsed / total) * 100;
+				this.sessionMarker.style.left = `${Math.min(100, Math.max(0, progress))}%`;
+			}
 		}
 	}
 
